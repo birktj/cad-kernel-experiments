@@ -62,7 +62,8 @@ impl Region1D {
     }
 
     pub fn contains(&self, other: &Region1D) -> bool {
-        self.intersection(other).r1_inside.is_empty()
+        let x = self.intersection(other);
+        x.r1_inside.is_empty() && x.r2_inside.len() == other.points().len()
     }
 
     pub fn intersection(&self, other: &Region1D) -> RegionIntersection1D {

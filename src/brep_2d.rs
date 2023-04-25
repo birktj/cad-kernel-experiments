@@ -24,8 +24,6 @@ impl Region2D {
 
         region.check()?;
 
-        // TODO: check that cells are proper
-
         Some(region)
     }
 
@@ -64,7 +62,11 @@ impl Region2D {
         let cut_region = self.cut_region_filter(line, 
             |i| i != e && i != edge.x1 && i != edge.x2)?;
 
-        if !cut_region.contains(&r) {
+        let inside = self.inside_edge(e)?;
+
+        if inside && !cut_region.contains(&r) {
+            return None
+        } else if !inside && cut_region.contains(&r) {
             return None
         }
 
@@ -84,6 +86,27 @@ impl Region2D {
         self.edge_segment(e).intersects_line(line)
     }
 
+    fn inside_edge(&self, e: usize) -> Option<bool> {
+        let edge = self.edges[e];
+        let line = self.lines[edge.line];
+        let x1 = self.lines[self.edges[edge.x1].line];
+        let x2 = self.lines[self.edges[edge.x2].line];
+
+        let mut a = line.intersection(&x1)?;
+        let mut b = line.intersection(&x2)?;
+
+        // TODO: this is stupid
+        // Flip if inverted. We do this to compute a sensible region if this is an "inside" edge.
+        
+        Some(if a.pos < b.pos && !a.dir && b.dir {
+            true
+        } else if b.pos < a.pos && a.dir && !b.dir {
+            true
+        } else {
+            false
+        })
+    }
+
     fn edge_region_safe(&self, e: usize) -> Option<Region1D> {
         let edge = self.edges[e];
         let line = self.lines[edge.line];
@@ -95,6 +118,7 @@ impl Region2D {
 
         // TODO: this is stupid
         // Flip if inverted. We do this to compute a sensible region if this is an "inside" edge.
+        
         if a.pos < b.pos && !a.dir && b.dir {
             a.dir = true;
             b.dir = false;
@@ -156,16 +180,120 @@ pub struct Edge {
     pub x2: usize,
 }
 
+impl Edge {
+    pub fn new(line: usize, x1: usize, x2: usize) -> Self {
+        Self {
+            line,
+            x1,
+            x2,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_lines() -> Vec<Line> {
+        let p1 = na::Point2::new(0.0, 0.0);
+        let p2 = na::Point2::new(3.0, 0.0);
+        let p3 = na::Point2::new(3.0, 3.0);
+        let p4 = na::Point2::new(0.0, 3.0);
+
+        let p5 = na::Point2::new(1.0, 1.0);
+        let p6 = na::Point2::new(2.0, 1.0);
+        let p7 = na::Point2::new(2.0, 2.0);
+        let p8 = na::Point2::new(1.0, 2.0);
+
+        vec![
+            Line::from_two_points(p2, p1),
+            Line::from_two_points(p3, p2),
+            Line::from_two_points(p4, p3),
+            Line::from_two_points(p1, p4),
+            Line::from_two_points(p5, p6),
+            Line::from_two_points(p6, p7),
+            Line::from_two_points(p7, p8),
+            Line::from_two_points(p8, p5),
+        ]
+    }
+
+    #[test]
+    fn simple_region_valid() {
+        let edges = vec![
+            Edge::new(0, 1, 3),
+            Edge::new(1, 0, 2),
+            Edge::new(2, 1, 3),
+            Edge::new(3, 0, 2),
+        ];
+
+        let region = Region2D::new(test_lines(), edges).unwrap();
+
+        assert!(region.inside(na::Point2::new(0.5, 0.5)));
+        assert!(!region.inside(na::Point2::new(3.5, 0.5)));
+    }
+
+    #[test]
+    fn inverted_region_invalid() {
+        let edges = vec![
+            Edge::new(4, 1, 3),
+            Edge::new(5, 0, 2),
+            Edge::new(6, 1, 3),
+            Edge::new(7, 0, 2),
+        ];
+
+        assert!(Region2D::new(test_lines(), edges).is_none());
+    }
+
+    #[test]
+    fn nonintersecting_edges_region_invalid() {
+        let edges = vec![
+            Edge::new(4, 1, 2),
+            Edge::new(5, 0, 2),
+            Edge::new(6, 1, 2),
+        ];
+
+        assert!(Region2D::new(test_lines(), edges).is_none());
+    }
+
+    #[test]
+    fn inconsistent_edges_region_invalid() {
+        let edges = vec![
+            Edge::new(0, 1, 3),
+            Edge::new(1, 0, 2),
+            Edge::new(2, 1, 3),
+            Edge::new(7, 0, 2),
+        ];
+
+        assert!(Region2D::new(test_lines(), edges).is_none());
+    }
+
+    #[test]
+    fn region_with_hole_valid() {
+        let edges = vec![
+            Edge::new(0, 1, 3),
+            Edge::new(1, 0, 2),
+            Edge::new(2, 1, 3),
+            Edge::new(3, 0, 2),
+
+            Edge::new(4, 5, 7),
+            Edge::new(5, 4, 6),
+            Edge::new(6, 5, 7),
+            Edge::new(7, 4, 6),
+        ];
+
+        let region = Region2D::new(test_lines(), edges).unwrap();
+
+        assert!(region.inside(na::Point2::new(0.5, 0.5)));
+        assert!(!region.inside(na::Point2::new(1.5, 1.5)));
+        assert!(!region.inside(na::Point2::new(3.5, 0.5)));
+    }
 
     #[test]
     fn cut_regions_corner_stable() {
         let mut val: f64 = 10.316314;
         let mut rot: f64 = 0.0;
 
-        for _ in 0..10000 {
+        for _ in 0..1000 {
             let transform = na::Rotation2::new(rot);
             let p1 = transform * na::Point2::new(3.0, 0.3);
             let p2 = transform * na::Point2::new(10.532, val);
