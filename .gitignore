@@ -1,0 +1,5 @@
+/target
+/notes/*.log
+/notes/*.aux
+/notes/*.fdb_latexmk
+/notes/*.fls

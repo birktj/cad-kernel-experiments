@@ -1,0 +1,12 @@
+[package]
+name = "cad-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [
+    "viewer",
+]
+
+[dependencies]
+nalgebra = "0.32"
