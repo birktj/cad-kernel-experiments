@@ -28,7 +28,7 @@ impl Canvas {
         self
     }
 
-    pub fn show<R, F: FnOnce(CanvasUi) -> R>(self, ui: &mut egui::Ui, f: F) -> Option<R> {
+    pub fn show<'a, R, F: FnOnce(CanvasUi<'a>) -> R>(self, ui: &'a mut egui::Ui, f: F) -> Option<R> {
         let id = ui.make_persistent_id(self.id_source);
         let (res, painter) = ui.allocate_painter(self.size, egui::Sense::click_and_drag());
 
@@ -43,15 +43,16 @@ impl Canvas {
                 rect: res.rect,
                 transform: mem.transform,
                 res,
+                ui,
             };
 
             if canvas.res.dragged_by(egui::PointerButton::Secondary) {
                 canvas.transform.append_translation_mut(&(canvas.transform.scaling() * canvas.canvas_vec(canvas.res.drag_delta())).into());
                 mem.transform = canvas.transform;
-                ui.memory_mut(|m| m.data.insert_temp(id, mem.clone()));
+                canvas.ui.memory_mut(|m| m.data.insert_temp(id, mem.clone()));
             }
 
-            let scroll = ui.input(|i| i.scroll_delta.y) as f64;
+            let scroll = canvas.ui.input(|i| i.scroll_delta.y) as f64;
             if let Some(pos) = canvas.mouse_pos().filter(|_| scroll != 0.0) {
                 let zoom = f64::exp(scroll * 0.01);
                 canvas.transform = 
@@ -60,7 +61,7 @@ impl Canvas {
                     * na::Similarity2::from_scaling(zoom)
                     * na::Translation2::from(-pos.coords);
                 mem.transform = canvas.transform;
-                ui.memory_mut(|m| m.data.insert_temp(id, mem.clone()));
+                canvas.ui.memory_mut(|m| m.data.insert_temp(id, mem.clone()));
             }
 
             Some(f(canvas))
@@ -75,16 +76,21 @@ pub struct CanvasMemory {
     transform: na::Similarity2<f64>,
 }
 
-pub struct CanvasUi {
+pub struct CanvasUi<'a> {
     painter: egui::Painter,
     rect: egui::Rect,
     transform: na::Similarity2<f64>,
     res: egui::Response,
+    ui: &'a mut egui::Ui,
 }
 
-impl CanvasUi {
+impl<'a> CanvasUi<'a> {
     pub fn response(&self) -> &egui::Response {
         &self.res
+    }
+
+    pub fn ui(&'a self) -> &'a egui::Ui {
+        self.ui
     }
 
     fn origin(&self) -> na::Point2<f64> {

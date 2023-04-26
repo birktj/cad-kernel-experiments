@@ -4,6 +4,7 @@ extern crate cad_kernel as kernel;
 mod camera;
 mod wireframe_egui;
 mod canvas;
+mod editor_2d;
 
 use kernel::mesh::Mesh;
 use kernel::geometry;
@@ -24,7 +25,7 @@ pub fn run(model: Mesh) {
 pub struct App {
     camera: camera::Trackball,
     object: std::sync::Arc<wireframe_egui::WireframeObject>,
-    canvas_transform: na::Similarity2::<f64>,
+    editor: editor_2d::Editor2D,
 }
 
 impl App {
@@ -39,19 +40,24 @@ impl App {
 
         let camera = camera::Trackball::new(3.14 / 4.0);
 
+        let editor = editor_2d::Editor2D::new();
+
         Self {
             camera,
             object: std::sync::Arc::new(object),
-            canvas_transform: na::Similarity2::identity(),
+            editor,
         }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        ctx.set_pixels_per_point(1.2);
         wireframe_egui::RenderContext::new_frame(frame);
         egui::CentralPanel::default().show(ctx, |ui| {
+            self.editor.show(ui);
 
+            /*
             ui.heading("1D region");
             canvas::Canvas::new("1d_region_canvas")
                 .size(egui::Vec2::new(200.0, 125.0))
@@ -180,6 +186,7 @@ impl eframe::App for App {
                         }
                     }
                 });
+            */  
         });
     }
 }
